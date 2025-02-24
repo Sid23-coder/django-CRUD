@@ -1,0 +1,234 @@
+{% extends "base.html" %} {% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-primary mb-0">Projects & Tasks</h2>
+    <div>
+      <a href="{% url 'create_project' %}" class="btn btn-success me-2">
+        <i class="fas fa-folder-plus"></i> New Project
+      </a>
+    </div>
+  </div>
+
+  {% if messages %} {% for message in messages %}
+  <div
+    class="alert alert-{{ message.tags }} alert-dismissible fade show"
+    role="alert"
+  >
+    {{ message }}
+    <button
+      type="button"
+      class="btn-close"
+      data-bs-dismiss="alert"
+      aria-label="Close"
+    ></button>
+  </div>
+  {% endfor %} {% endif %}
+
+  <div class="accordion" id="projectsAccordion">
+    {% for project_with_tasks in projects_with_tasks %}
+    <div class="accordion-item mb-3 shadow-sm">
+      <h2
+        class="accordion-header"
+        id="heading{{ project_with_tasks.project.id }}"
+      >
+        <button
+          class="accordion-button {% if not forloop.first %}collapsed{% endif %}"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#collapse{{ project_with_tasks.project.id }}"
+          aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+          aria-controls="collapse{{ project_with_tasks.project.id }}"
+        >
+          <div
+            class="d-flex justify-content-between align-items-center w-100 me-3"
+          >
+            <span>{{ project_with_tasks.project.name }}</span>
+            <span class="badge bg-secondary rounded-pill"
+              >{{ project_with_tasks.tasks|length }} tasks</span
+            >
+          </div>
+        </button>
+      </h2>
+      <div
+        id="collapse{{ project_with_tasks.project.id }}"
+        class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+        aria-labelledby="heading{{ project_with_tasks.project.id }}"
+        data-bs-parent="#projectsAccordion"
+      >
+        <div class="accordion-body">
+          <div class="d-flex justify-content-between mb-3">
+            <p class="text-muted">
+              {{ project_with_tasks.project.description }}
+            </p>
+            <div>
+              {% if project_with_tasks.is_owner %}
+              <a
+                href="{% url 'create_task' project_with_tasks.project.id %}"
+                class="btn btn-primary btn-sm me-2"
+              >
+                <i class="fas fa-plus"></i> Add Task
+              </a>
+              <a
+                href="{% url 'update_project' project_with_tasks.project.id %}"
+                class="btn btn-warning btn-sm me-2"
+              >
+                <i class="fas fa-edit"></i> Edit Project
+              </a>
+              <a
+                href="{% url 'delete_project' project_with_tasks.project.id %}"
+                class="btn btn-danger btn-sm"
+                onclick="return confirm('Are you sure? This will delete all tasks in this project!')"
+              >
+                <i class="fas fa-trash"></i> Delete Project
+              </a>
+              {% else %}
+              <a
+                href="{% url 'create_task' project_with_tasks.project.id %}"
+                class="btn btn-primary btn-sm me-2"
+              >
+                <i class="fas fa-plus"></i> Add Task
+              </a>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if project_with_tasks.tasks.count > 0 %}
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>Title</th>
+                  <th>Due Date</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for task in project_with_tasks.tasks %}
+                <tr>
+                  <td>{{ task.title }}</td>
+                  <td>{{ task.due_date|date:"M d, Y" }}</td>
+                  <td>
+                    <span
+                      class="badge {% if task.priority == 'High' %}bg-danger{% elif task.priority == 'Medium' %}bg-warning text-dark{% else %}bg-success{% endif %}"
+                    >
+                      {{ task.priority }}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      class="badge {% if task.status == 'Completed' %}bg-success{% elif task.status == 'In Progress' %}bg-primary{% else %}bg-secondary{% endif %}"
+                    >
+                      {{ task.status }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if task.user == request.user %}
+                    <!-- Task owner has all permissions -->
+                    <a
+                      href="{% url 'update_task' task.id %}"
+                      class="btn btn-sm btn-primary me-1"
+                      title="Edit Task"
+                    >
+                      Edit Task
+                    </a>
+                    <a
+                      href="{% url 'delete_task' task.id %}"
+                      class="btn btn-sm btn-danger me-1"
+                      onclick="return confirm('Are you sure you want to delete this task?')"
+                      title="Delete Task"
+                    >
+                      Delete Task
+                    </a>
+                    {% if request.user.is_superuser %}
+                    <a
+                      href="{% url 'manage_task_permissions' task.id %}"
+                      class="btn btn-sm btn-info"
+                      title="Manage Permissions"
+                    >
+                      <i class="fas fa-user-lock"></i>
+                    </a>
+                    {% endif %} {% elif request.user.is_superuser %}
+                    <!-- Admin has all permissions -->
+                    <a
+                      href="{% url 'update_task' task.id %}"
+                      class="btn btn-sm btn-primary me-1"
+                      title="Edit Task"
+                    >
+                      Edit Task
+                    </a>
+                    <a
+                      href="{% url 'delete_task' task.id %}"
+                      class="btn btn-sm btn-danger me-1"
+                      onclick="return confirm('Are you sure you want to delete this task?')"
+                      title="Delete Task"
+                    >
+                      Delete Task
+                    </a>
+                    <a
+                      href="{% url 'manage_task_permissions' task.id %}"
+                      class="btn btn-sm btn-info"
+                      title="Manage Permissions"
+                    >
+                      <i class="fas fa-user-lock"></i>
+                    </a>
+                    {% else %}
+                    <!-- Other users need permission checks -->
+                    {% if task.has_edit_permission %}
+                    <a
+                      href="{% url 'update_task' task.id %}"
+                      class="btn btn-sm btn-primary me-1"
+                      title="Edit Task"
+                    >
+                      Edit Task
+                    </a>
+                    {% else %}
+                    <button
+                      class="btn btn-sm btn-outline-secondary me-1"
+                      disabled
+                      title="Edit Task (Requires Permission)"
+                    >
+                      Edit Task
+                    </button>
+                    {% endif %} {% if task.has_delete_permission %}
+                    <a
+                      href="{% url 'delete_task' task.id %}"
+                      class="btn btn-sm btn-danger me-1"
+                      onclick="return confirm('Are you sure you want to delete this task?')"
+                      title="Delete Task"
+                    >
+                      Delete Task
+                    </a>
+                    {% else %}
+                    <button
+                      class="btn btn-sm btn-outline-secondary me-1"
+                      disabled
+                      title="Delete Task (Requires Permission)"
+                    >
+                      Delete Task
+                    </button>
+                    {% endif %} {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="alert alert-info">
+            No tasks added for this project yet. Use the "Add Task" button to
+            create your first task.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-info">
+      No projects created yet. Create your first project to get started!
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
