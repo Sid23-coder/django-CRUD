@@ -37,7 +37,9 @@
                                                 {% if permission.permission_type == 'delete' %}bg-danger
                                                 {% elif permission.permission_type == 'edit' %}bg-warning text-dark
                                                 {% else %}bg-info text-dark{% endif %}">
-                                                {{ permission.permission_type|title }}
+                                                {% if permission.permission_type == 'view' %}View Only
+                                                {% elif permission.permission_type == 'edit' %}View + Edit
+                                                {% else %}View + Edit + Delete{% endif %}
                                             </span>
                                         </td>
                                         <td>{{ permission.assigned_date|date:"M d, Y" }}</td>
@@ -77,7 +79,7 @@
                         <div class="mb-3">
                             <label for="user_id" class="form-label">Select User</label>
                             <select class="form-select" id="user_id" name="user_id" required>
-                                <option value="" disabled selected>Choose a user</option>
+                                <option value="" disabled>Choose a user</option>
                                 {% for user in available_users %}
                                 <option value="{{ user.id }}">{{ user.username }}</option>
                                 {% endfor %}
@@ -86,16 +88,15 @@
                         <div class="mb-3">
                             <label for="permission_type" class="form-label">Permission Level</label>
                             <select class="form-select" id="permission_type" name="permission_type" required>
-                                <option value="" disabled selected>Choose permission level</option>
-                                <option value="view">View Only</option>
-                                <option value="edit">Edit</option>
-                                <option value="delete">Delete</option>
+                                <option value="view" selected>View Only</option>
+                                <option value="edit">View + Edit</option>
+                                <option value="delete">View + Edit + Delete</option>
                             </select>
                             <div class="form-text">
                                 <ul class="mt-2 ps-3">
                                     <li><strong>View Only:</strong> User can only view the task</li>
-                                    <li><strong>Edit:</strong> User can view and edit the task</li>
-                                    <li><strong>Delete:</strong> User can view, edit, and delete the task</li>
+                                    <li><strong>View + Edit:</strong> User can view and edit the task</li>
+                                    <li><strong>View + Edit + Delete:</strong> User can view, edit, and delete the task</li>
                                 </ul>
                             </div>
                         </div>
