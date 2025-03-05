@@ -9,7 +9,6 @@ from django.urls import reverse
 from .models import Task, Project, TaskPermission
 from .forms import TaskForm, ProjectForm
 
-# Updated helper function: Owners don't get edit/delete by default
 def check_task_permission(user, task, required_permission='view'):
     if user.is_superuser:
         return True  # Admins have full access
@@ -22,7 +21,7 @@ def check_task_permission(user, task, required_permission='view'):
         elif required_permission == 'delete':
             return permission.permission_type == 'delete'
     except TaskPermission.DoesNotExist:
-        # Default: Users can view their own tasks, but not edit/delete without explicit permission
+        # Default: Users can view their own tasks, but not edit/delete
         if task.user == user and required_permission == 'view':
             return True
         return False
@@ -69,54 +68,27 @@ def user_logout(request):
 
 @login_required
 def task_list(request):
-    projects_with_tasks = []
-
+    tasks = []
     if request.user.is_superuser:
-        all_projects = Project.objects.all().prefetch_related('tasks')
-        for project in all_projects:
-            tasks = project.tasks.all()
-            for task in tasks:
-                task.has_edit_permission = True  # Admin can edit all
-                task.has_delete_permission = True  # Admin can delete all
-            projects_with_tasks.append({
-                'project': project,
-                'tasks': tasks,
-                'is_owner': project.user == request.user,
-                'owner_username': project.user.username
-            })
+        tasks = Task.objects.all()
+        for task in tasks:
+            task.has_edit_permission = True
+            task.has_delete_permission = True
     else:
-        own_projects = Project.objects.filter(user=request.user).prefetch_related('tasks')
-        shared_tasks = Task.objects.filter(taskpermission__user=request.user).select_related('project').distinct()
-        shared_project_ids = set(shared_tasks.values_list('project', flat=True))
-        shared_projects = Project.objects.filter(id__in=shared_project_ids).prefetch_related('tasks')
+        # Own tasks (view only by default) + tasks with explicit permissions
+        own_tasks = Task.objects.filter(user=request.user)
+        shared_tasks = Task.objects.filter(taskpermission__user=request.user).distinct()
+        tasks = list(own_tasks) + list(shared_tasks)
+        for task in tasks:
+            task.has_edit_permission = check_task_permission(request.user, task, 'edit')
+            task.has_delete_permission = check_task_permission(request.user, task, 'delete')
 
-        for project in own_projects:
-            tasks = project.tasks.all()
-            for task in tasks:
-                task.has_edit_permission = check_task_permission(request.user, task, 'edit')
-                task.has_delete_permission = check_task_permission(request.user, task, 'delete')
-            projects_with_tasks.append({
-                'project': project,
-                'tasks': tasks,
-                'is_owner': True,
-                'owner_username': request.user.username
-            })
-
-        for project in shared_projects:
-            if project.user != request.user:
-                tasks = Task.objects.filter(project=project, taskpermission__user=request.user).distinct()
-                for task in tasks:
-                    task.has_edit_permission = check_task_permission(request.user, task, 'edit')
-                    task.has_delete_permission = check_task_permission(request.user, task, 'delete')
-                projects_with_tasks.append({
-                    'project': project,
-                    'tasks': tasks,
-                    'is_owner': False,
-                    'owner_username': project.user.username
-                })
+    # Remove duplicates while preserving order
+    seen_ids = set()
+    unique_tasks = [t for t in tasks if not (t.id in seen_ids or seen_ids.add(t.id))]
 
     return render(request, 'task_list.html', {
-        'projects_with_tasks': projects_with_tasks,
+        'tasks': unique_tasks,
         'is_admin': request.user.is_superuser
     })
 
@@ -211,52 +183,47 @@ def delete_task(request, task_id):
 @user_passes_test(is_admin)
 def manage_task_permissions(request, task_id):
     task = get_object_or_404(Task, id=task_id)
+    user = task.user  # Automatically set to the task owner
     if request.method == "POST":
-        if 'action' in request.POST and request.POST['action'] == 'remove':
-            user_id = request.POST.get('user_id')
-            TaskPermission.objects.filter(task=task, user_id=user_id).delete()
-            messages.success(request, 'Permission removed successfully!')
-        else:
-            user_id = request.POST.get('user_id')
-            permission_type = request.POST.get('permission_type')
-            if user_id and permission_type:
-                user = get_object_or_404(User, id=user_id)
-                TaskPermission.objects.update_or_create(
-                    user=user,
-                    task=task,
-                    defaults={'permission_type': permission_type, 'assigned_by': request.user}
-                )
-                messages.success(request, f'Permissions updated for {user.username}')
+        permission_type = request.POST.get('permission_type', '')
+        if permission_type in ['view', 'edit', 'delete']:
+            TaskPermission.objects.update_or_create(
+                user=user,
+                task=task,
+                defaults={'permission_type': permission_type, 'assigned_by': request.user}
+            )
+            messages.success(request, f"Permissions updated for {user.username}")
+        elif permission_type == '':
+            TaskPermission.objects.filter(user=user, task=task).delete()
+            messages.success(request, f"Permissions removed for {user.username}")
         return redirect('task_list')
-    available_users = User.objects.exclude(id=task.user.id)
-    current_permissions = TaskPermission.objects.filter(task=task)
+
+    try:
+        current_permission = TaskPermission.objects.get(user=user, task=task).permission_type
+    except TaskPermission.DoesNotExist:
+        current_permission = 'view'  # Default for owner
     return render(request, 'manage_permissions.html', {
         'task': task,
-        'available_users': available_users,
-        'current_permissions': current_permissions
+        'project_name': task.project.name,
+        'current_permission': current_permission
     })
 
 @login_required
 @user_passes_test(is_admin)
 def set_task_permission(request, task_id):
     task = get_object_or_404(Task, id=task_id)
+    user = task.user  # Automatically set to the task owner
     if request.method == "POST":
-        user_id = request.POST.get('user_id')
-        permission_type = request.POST.get('permission_type')
-        user = get_object_or_404(User, id=user_id)
-
-        if task.user == user:
-            messages.error(request, 'Cannot modify permissions for the task owner.')
-        else:
-            if permission_type:
-                TaskPermission.objects.update_or_create(
-                    task=task,
-                    user=user,
-                    defaults={'permission_type': permission_type, 'assigned_by': request.user}
-                )
-                messages.success(request, 'Permission updated successfully.')
-            else:
-                TaskPermission.objects.filter(task=task, user=user).delete()
-                messages.success(request, 'Permission removed successfully.')
+        permission_type = request.POST.get('permission_type', '')
+        if permission_type in ['view', 'edit', 'delete']:
+            TaskPermission.objects.update_or_create(
+                task=task,
+                user=user,
+                defaults={'permission_type': permission_type, 'assigned_by': request.user}
+            )
+            messages.success(request, 'Permission updated successfully.')
+        elif permission_type == '':
+            TaskPermission.objects.filter(task=task, user=user).delete()
+            messages.success(request, 'Permission removed successfully.')
         return redirect('task_list')
     return redirect('task_list')

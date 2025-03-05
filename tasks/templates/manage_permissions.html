@@ -1,116 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container">
-    <div class="row mb-4">
-        <div class="col">
-            <h2 class="text-primary">Manage Task Permissions</h2>
-            <h5 class="text-muted">Task: {{ task.title }}</h5>
-            <p><strong>Project:</strong> {{ task.project.name }}</p>
-            <p><strong>Owner:</strong> {{ task.user.username }}</p>
-        </div>
-    </div>
+    <h2 class="text-primary">Manage Permissions for {{ task.title }}</h2>
+    <p><strong>Project:</strong> {{ project_name }}</p>
+    <p><strong>Owner:</strong> {{ task.user.username }}</p>
+    <p><strong>Current Permission:</strong> 
+        {% if current_permission == 'view' %}View Only
+        {% elif current_permission == 'edit' %}View + Edit
+        {% elif current_permission == 'delete' %}View + Edit + Delete{% endif %}
+    </p>
 
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">Current Permissions</h5>
-                </div>
-                <div class="card-body">
-                    {% if current_permissions %}
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>User</th>
-                                        <th>Permission</th>
-                                        <th>Assigned On</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for permission in current_permissions %}
-                                    <tr>
-                                        <td>{{ permission.user.username }}</td>
-                                        <td>
-                                            <span class="badge 
-                                                {% if permission.permission_type == 'delete' %}bg-danger
-                                                {% elif permission.permission_type == 'edit' %}bg-warning text-dark
-                                                {% else %}bg-info text-dark{% endif %}">
-                                                {% if permission.permission_type == 'view' %}View Only
-                                                {% elif permission.permission_type == 'edit' %}View + Edit
-                                                {% else %}View + Edit + Delete{% endif %}
-                                            </span>
-                                        </td>
-                                        <td>{{ permission.assigned_date|date:"M d, Y" }}</td>
-                                        <td>
-                                            <form method="post" class="d-inline">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="action" value="remove">
-                                                <input type="hidden" name="user_id" value="{{ permission.user.id }}">
-                                                <button type="submit" class="btn btn-sm btn-danger" 
-                                                        onclick="return confirm('Are you sure you want to remove this permission?')">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="alert alert-info">
-                            No permissions have been assigned to other users for this task yet.
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="permission_type" class="form-label">Assign Permission</label>
+            <select class="form-select" id="permission_type" name="permission_type">
+                <option value="" {% if not current_permission or current_permission == 'view' %}selected{% endif %}>View Only (Default)</option>
+                <option value="edit" {% if current_permission == 'edit' %}selected{% endif %}>View + Edit</option>
+                <option value="delete" {% if current_permission == 'delete' %}selected{% endif %}>View + Edit + Delete</option>
+            </select>
         </div>
-
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">Add New Permission</h5>
-                </div>
-                <div class="card-body">
-                    <form method="post">
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="user_id" class="form-label">Select User</label>
-                            <select class="form-select" id="user_id" name="user_id" required>
-                                <option value="" disabled>Choose a user</option>
-                                {% for user in available_users %}
-                                <option value="{{ user.id }}">{{ user.username }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="permission_type" class="form-label">Permission Level</label>
-                            <select class="form-select" id="permission_type" name="permission_type" required>
-                                <option value="view" selected>View Only</option>
-                                <option value="edit">View + Edit</option>
-                                <option value="delete">View + Edit + Delete</option>
-                            </select>
-                            <div class="form-text">
-                                <ul class="mt-2 ps-3">
-                                    <li><strong>View Only:</strong> User can only view the task</li>
-                                    <li><strong>View + Edit:</strong> User can view and edit the task</li>
-                                    <li><strong>View + Edit + Delete:</strong> User can view, edit, and delete the task</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Assign Permission</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="mt-4">
-        <a href="{% url 'task_list' %}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left me-1"></i> Back to Tasks
-        </a>
-    </div>
+        <button type="submit" class="btn btn-primary">Update Permission</button>
+        <a href="{% url 'task_list' %}" class="btn btn-secondary">Back to Tasks</a>
+    </form>
 </div>
 {% endblock %}
