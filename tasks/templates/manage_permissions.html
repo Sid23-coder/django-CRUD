@@ -1,27 +1,58 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container">
-    <h2 class="text-primary">Manage Permissions for {{ task.title }}</h2>
-    <p><strong>Project:</strong> {{ project_name }}</p>
-    <p><strong>Owner:</strong> {{ task.user.username }}</p>
-    <p><strong>Current Permission:</strong> 
-        {% if current_permission == 'view' %}View Only
-        {% elif current_permission == 'edit' %}View + Edit
-        {% elif current_permission == 'delete' %}View + Edit + Delete{% endif %}
-    </p>
+  <!-- Header section with task details -->
+  <div class="row mb-4">
+    <div class="col">
+      <h2 class="text-primary">Manage Permissions for {{ task.title }}</h2>
+      <h5 class="text-muted">Task: {{ task.title }}</h5>
+      <p><strong>Project:</strong> {{ project_name }}</p>
+      <p><strong>Owner:</strong> {{ task.user.username }}</p>
+    </div>
+  </div>
 
-    <form method="post">
-        {% csrf_token %}
-        <div class="mb-3">
-            <label for="permission_type" class="form-label">Assign Permission</label>
-            <select class="form-select" id="permission_type" name="permission_type">
+  <!-- Permission update section in a card -->
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="card-title mb-0">Update Permission</h5>
+        </div>
+        <div class="card-body">
+          <p><strong>Current Permission:</strong> 
+            {% if current_permission == 'view' %}View Only
+            {% elif current_permission == 'edit' %}View + Edit
+            {% elif current_permission == 'delete' %}View + Edit + Delete{% endif %}
+          </p>
+          <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="permission_type" class="form-label">Assign Permission</label>
+              <select class="form-select" id="permission_type" name="permission_type">
                 <option value="" {% if not current_permission or current_permission == 'view' %}selected{% endif %}>View Only (Default)</option>
                 <option value="edit" {% if current_permission == 'edit' %}selected{% endif %}>View + Edit</option>
                 <option value="delete" {% if current_permission == 'delete' %}selected{% endif %}>View + Edit + Delete</option>
-            </select>
+              </select>
+              <div class="form-text">
+                <ul class="mt-2 ps-3">
+                  <li><strong>View Only:</strong> User can only view the task</li>
+                  <li><strong>View + Edit:</strong> User can view and edit the task</li>
+                  <li><strong>View + Edit + Delete:</strong> User can view, edit, and delete the task</li>
+                </ul>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Update Permission</button>
+          </form>
         </div>
-        <button type="submit" class="btn btn-primary">Update Permission</button>
-        <a href="{% url 'task_list' %}" class="btn btn-secondary">Back to Tasks</a>
-    </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Back button -->
+  <div class="mt-4">
+    <a href="{% url 'task_list' %}" class="btn btn-secondary">
+      <i class="fas fa-arrow-left me-1"></i> Back to Tasks
+    </a>
+  </div>
 </div>
 {% endblock %}
