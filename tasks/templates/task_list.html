@@ -1,8 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container">
-  <h2 class="text-primary mb-4">Tasks {% if is_admin %}(Admin View){% endif %}</h2>
+  <!-- Header with flex layout and New Project button -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-primary mb-0">Tasks {% if is_admin %}(Admin View){% endif %}</h2>
+    {% if request.user.is_superuser or not tasks %}
+      <div>
+        <a href="{% url 'create_project' %}" class="btn btn-success me-2">
+          <i class="fas fa-folder-plus"></i> New Project
+        </a>
+      </div>
+    {% endif %}
+  </div>
 
+  <!-- Messages section -->
   {% if messages %}
     {% for message in messages %}
       <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -12,68 +23,86 @@
     {% endfor %}
   {% endif %}
 
+  <!-- Tasks display -->
   {% if tasks %}
-    <div class="table-responsive">
-      <table class="table table-hover">
-        <thead class="table-light">
-          <tr>
-            <th>Project</th>
-            <th>Title</th>
-            <th>Due Date</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Owner</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for task in tasks %}
-            <tr>
-              <td>{{ task.project.name }}</td>
-              <td>{{ task.title }}</td>
-              <td>{{ task.due_date|date:"M d, Y" }}</td>
-              <td>
-                <span class="badge {% if task.priority == 'High' %}bg-danger{% elif task.priority == 'Medium' %}bg-warning text-dark{% else %}bg-success{% endif %}">
-                  {{ task.priority }}
-                </span>
-              </td>
-              <td>
-                <span class="badge {% if task.status == 'Completed' %}bg-success{% elif task.status == 'In Progress' %}bg-primary{% else %}bg-secondary{% endif %}">
-                  {{ task.status }}
-                </span>
-              </td>
-              <td>{{ task.user.username }}</td>
-              <td>
-                {% if request.user.is_superuser %}
-                  <a href="{% url 'update_task' task.id %}" class="btn btn-sm btn-primary me-1" title="Edit Task">Edit</a>
-                  <a href="{% url 'delete_task' task.id %}" class="btn btn-sm btn-danger me-1" onclick="return confirm('Are you sure?')" title="Delete Task">Delete</a>
-                  <a href="{% url 'manage_task_permissions' task.id %}" class="btn btn-sm btn-info me-1" title="Manage Permissions">Manage</a>
-                {% else %}
-                  {% if task.has_edit_permission %}
-                    <a href="{% url 'update_task' task.id %}" class="btn btn-sm btn-primary me-1" title="Edit Task">Edit</a>
-                  {% else %}
-                    <button class="btn btn-sm btn-outline-secondary me-1" disabled title="Edit Task (Requires Permission)">Edit</button>
-                  {% endif %}
-                  {% if task.has_delete_permission %}
-                    <a href="{% url 'delete_task' task.id %}" class="btn btn-sm btn-danger me-1" onclick="return confirm('Are you sure?')" title="Delete Task">Delete</a>
-                  {% else %}
-                    <button class="btn btn-sm btn-outline-secondary me-1" disabled title="Delete Task (Requires Permission)">Delete</button>
-                  {% endif %}
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    {% regroup tasks by project as project_list %}
+    <div class="accordion" id="tasksAccordion">
+      {% for project in project_list %}
+      <div class="accordion-item mb-3 shadow-sm">
+        <!-- Accordion header -->
+        <h2 class="accordion-header" id="heading{{ project.grouper.id }}">
+          <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ project.grouper.id }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ project.grouper.id }}">
+            <div class="d-flex justify-content-between align-items-center w-100 me-3">
+              <span>{{ project.grouper.name }}</span>
+              <span class="badge bg-secondary rounded-pill">{{ project.list|length }} tasks</span>
+            </div>
+          </button>
+        </h2>
+        <!-- Accordion body -->
+        <div id="collapse{{ project.grouper.id }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="heading{{ project.grouper.id }}" data-bs-parent="#tasksAccordion">
+          <div class="accordion-body">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Project</th>
+                    <th>Title</th>
+                    <th>Due Date</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Owner</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for task in project.list %}
+                    <tr>
+                      <td>{{ task.project.name }}</td>
+                      <td>{{ task.title }}</td>
+                      <td>{{ task.due_date|date:"M d, Y" }}</td>
+                      <td>
+                        <span class="badge {% if task.priority == 'High' %}bg-danger{% elif task.priority == 'Medium' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                          {{ task.priority }}
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge {% if task.status == 'Completed' %}bg-success{% elif task.status == 'In Progress' %}bg-primary{% else %}bg-secondary{% endif %}">
+                          {{ task.status }}
+                        </span>
+                      </td>
+                      <td>{{ task.user.username }}</td>
+                      <td>
+                        {% if request.user.is_superuser %}
+                          <a href="{% url 'update_task' task.id %}" class="btn btn-sm btn-primary me-1" title="Edit Task">Edit</a>
+                          <a href="{% url 'delete_task' task.id %}" class="btn btn-sm btn-danger me-1" onclick="return confirm('Are you sure?')" title="Delete Task">Delete</a>
+                          <a href="{% url 'manage_task_permissions' task.id %}" class="btn btn-sm btn-info me-1" title="Manage Permissions">Manage</a>
+                        {% else %}
+                          {% if task.has_edit_permission %}
+                            <a href="{% url 'update_task' task.id %}" class="btn btn-sm btn-primary me-1" title="Edit Task">Edit</a>
+                          {% else %}
+                            <button class="btn btn-sm btn-outline-secondary me-1" disabled title="Edit Task (Requires Permission)">Edit</button>
+                          {% endif %}
+                          {% if task.has_delete_permission %}
+                            <a href="{% url 'delete_task' task.id %}" class="btn btn-sm btn-danger me-1" onclick="return confirm('Are you sure?')" title="Delete Task">Delete</a>
+                          {% else %}
+                            <button class="btn btn-sm btn-outline-secondary me-1" disabled title="Delete Task (Requires Permission)">Delete</button>
+                          {% endif %}
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
     </div>
   {% else %}
     <div class="alert alert-info">
       No tasks available.
     </div>
-  {% endif %}
-
-  {% if request.user.is_superuser or not tasks %}
-    <a href="{% url 'create_project' %}" class="btn btn-success mt-3">New Project</a>
   {% endif %}
 </div>
 {% endblock %}
