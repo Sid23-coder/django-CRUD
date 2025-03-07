@@ -1,4 +1,8 @@
 tasks/__pycache__
+tasks/__pycache__/settings.cpython-311.pyc
+tasks/__pycache__/__init__.cpython-311.pyc
+tasks/__pycache__/urls.cpython-311.pyc
+tasks/__pycache__/wsgi.cpython-311.pyc
 tasks/__pycache__
 user/__pycache__
 user/migrations

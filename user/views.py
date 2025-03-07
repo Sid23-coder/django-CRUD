@@ -8,6 +8,7 @@ from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from .models import Task, Project, TaskPermission
 from .forms import TaskForm, ProjectForm
+from datetime import date
 
 def check_task_permission(user, task, required_permission='view'):
     if user.is_superuser:
@@ -100,7 +101,19 @@ def create_project(request):
             project = form.save(commit=False)
             project.user = request.user
             project.save()
-            messages.success(request, 'Project created successfully!')
+            Task.objects.create(
+                title=f"Initial task for {project.name}",
+                description="Placeholder task - edit or delete as needed",
+                user=request.user,
+                project=project,
+                due_date=date.today(),
+                priority='Low',
+                status='Pending'
+            )
+            messages.success(
+                request,
+                'Project created successfully with an initial task. Add more tasks or edit/delete this one.'
+            )
             return redirect('task_list')
     else:
         form = ProjectForm()
