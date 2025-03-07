@@ -1,2 +1,5 @@
 django
-jinja
+gunicorn
+whitenoise
+psycopg2-binary
+django-environ
