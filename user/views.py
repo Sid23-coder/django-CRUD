@@ -88,9 +88,36 @@ def task_list(request):
     seen_ids = set()
     unique_tasks = [t for t in tasks if not (t.id in seen_ids or seen_ids.add(t.id))]
 
+    # Determine projects where the user can add tasks
+    if request.user.is_superuser:
+        projects = Project.objects.all()
+    else:
+        project_ids = set(task.project_id for task in unique_tasks if task.project)
+        projects = Project.objects.filter(id__in=project_ids)
+
+    can_add_to_projects = {}
+    for project in projects:
+        if request.user.is_superuser:
+            can_add_to_projects[project.id] = True
+        elif project.user == request.user:
+            can_add_to_projects[project.id] = True
+        else:
+            has_permission = Task.objects.filter(
+                project=project,
+                taskpermission__user=request.user,
+                taskpermission__permission_type__in=['edit', 'delete']
+            ).exists()
+            can_add_to_projects[project.id] = has_permission
+
+    # Attach can_add attribute to each project in unique_tasks
+    for task in unique_tasks:
+        if task.project:  # Ensure project exists
+            task.project.can_add = can_add_to_projects.get(task.project.id, False)
+
     return render(request, 'task_list.html', {
         'tasks': unique_tasks,
-        'is_admin': request.user.is_superuser
+        'is_admin': request.user.is_superuser,
+        'can_add_to_projects': can_add_to_projects  # Optional, kept for debugging
     })
 
 @login_required

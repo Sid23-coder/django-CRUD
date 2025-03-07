@@ -41,6 +41,14 @@
         <!-- Accordion body -->
         <div id="collapse{{ project.grouper.id }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="heading{{ project.grouper.id }}" data-bs-parent="#tasksAccordion">
           <div class="accordion-body">
+            <!-- Add Task button for permitted projects -->
+            {% if project.grouper.can_add %}
+            <div class="mb-3">
+              <a href="{% url 'create_task' project_id=project.grouper.id %}" class="btn btn-success">
+                <i class="fas fa-plus"></i> Add Task to {{ project.grouper.name }}
+              </a>
+            </div>
+            {% endif %}
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead class="table-light">
