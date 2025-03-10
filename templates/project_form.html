@@ -33,19 +33,26 @@
                             {% endif %}
                         </div>
                         
-                        {# Assigned Users (for admin only) #}
-                        {% if is_admin and form.assigned_users %}
+                        {# Assigned Users with Checkboxes (for admin only) #}
+                        {% if is_admin %}
                         <div class="mb-3">
-                            <label for="{{ form.assigned_users.id_for_label }}" class="form-label">{{ form.assigned_users.label }}</label>
-                            {{ form.assigned_users }}
-                            {% if form.assigned_users.errors %}
-                            <div class="text-danger">
-                                {{ form.assigned_users.errors }}
+                            <label class="form-label">Assign to Users</label>
+                            {% for user in all_users %}
+                            <div class="form-check">
+                                <input type="checkbox" 
+                                       name="assigned_users" 
+                                       value="{{ user.id }}" 
+                                       class="form-check-input"
+                                       id="user_{{ user.id }}"
+                                       {% if user in current_assigned_users %}checked{% endif %}>
+                                <label class="form-check-label" for="user_{{ user.id }}">
+                                    {{ user.username }}
+                                </label>
                             </div>
-                            {% endif %}
-                            {% if form.assigned_users.help_text %}
-                            <small class="form-text text-muted">{{ form.assigned_users.help_text }}</small>
-                            {% endif %}
+                            {% endfor %}
+                            <small class="form-text text-muted">
+                                Select users to assign this project to. The project owner will always be included.
+                            </small>
                         </div>
                         {% endif %}
                         
@@ -59,20 +66,4 @@
         </div>
     </div>
 </div>
-
-{% if is_admin %}
-<script>
-    // Optional: Add a JavaScript library like Select2 to enhance multiple select experience
-    // This is just a placeholder - you would need to include the Select2 library for this to work
-    document.addEventListener('DOMContentLoaded', function() {
-        // Check if any select2 library is available
-        if (typeof $ !== 'undefined' && $.fn.select2) {
-            $('#id_assigned_users').select2({
-                placeholder: "Select users to assign to this project",
-                allowClear: true
-            });
-        }
-    });
-</script>
-{% endif %}
 {% endblock %}
