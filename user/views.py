@@ -77,6 +77,37 @@ def task_list(request):
         for task in tasks:
             task.has_edit_permission = True
             task.has_delete_permission = True
+            
+        # Get all projects for display
+        projects = Project.objects.all().prefetch_related('assigned_users', 'user')
+        
+        # Create display_projects list with assignment information
+        display_projects = []
+        for project in projects:
+            # For each assigned user, create a separate display entry
+            for assigned_user in project.assigned_users.all():
+                display_project = {
+                    'id': project.id,
+                    'name': project.name,
+                    'original_project': project,
+                    'creator': project.user.username,
+                    'assigned_to': assigned_user.username,
+                    'tasks': [task for task in tasks if task.project_id == project.id]
+                }
+                display_projects.append(display_project)
+                
+            # If no assigned users, show project with just the creator
+            if not project.assigned_users.exists():
+                display_project = {
+                    'id': project.id,
+                    'name': project.name,
+                    'original_project': project,
+                    'creator': project.user.username,
+                    'assigned_to': project.user.username,
+                    'tasks': [task for task in tasks if task.project_id == project.id]
+                }
+                display_projects.append(display_project)
+                
     else:
         # For regular users: Show only their tasks and tasks shared with them
         own_tasks = Task.objects.filter(user=request.user)
@@ -92,9 +123,57 @@ def task_list(request):
         for task in tasks:
             task.has_edit_permission = check_task_permission(request.user, task, 'edit')
             task.has_delete_permission = check_task_permission(request.user, task, 'delete')
+            
+        # Get projects created by or assigned to this user
+        user_projects = Project.objects.filter(
+            assigned_users=request.user
+        ).select_related('user').prefetch_related('assigned_users')
+        
+        # Also get projects created by the user (in case they aren't in assigned_users)
+        owned_projects = Project.objects.filter(user=request.user).select_related('user').prefetch_related('assigned_users')
+        
+        # Combine and remove duplicates
+        all_user_projects = (user_projects | owned_projects).distinct()
+        
+        # Create display_projects list with assignment information
+        display_projects = []
+        for project in all_user_projects:
+            # If user is both creator and assigned to project
+            if project.user == request.user and request.user in project.assigned_users.all():
+                display_project = {
+                    'id': project.id,
+                    'name': project.name,
+                    'original_project': project,
+                    'creator': project.user.username,
+                    'assigned_to': request.user.username,
+                    'tasks': [task for task in tasks if task.project_id == project.id]
+                }
+                display_projects.append(display_project)
+            # If user is just assigned to project
+            elif request.user in project.assigned_users.all():
+                display_project = {
+                    'id': project.id,
+                    'name': project.name,
+                    'original_project': project,
+                    'creator': project.user.username,
+                    'assigned_to': request.user.username,
+                    'tasks': [task for task in tasks if task.project_id == project.id]
+                }
+                display_projects.append(display_project)
+            # If user is just creator and not assigned (unlikely with the current setup)
+            elif project.user == request.user:
+                display_project = {
+                    'id': project.id,
+                    'name': project.name,
+                    'original_project': project,
+                    'creator': project.user.username,
+                    'assigned_to': project.user.username,  # Default to creator
+                    'tasks': [task for task in tasks if task.project_id == project.id]
+                }
+                display_projects.append(display_project)
 
     return render(request, 'task_list.html', {
-        'tasks': tasks,
+        'display_projects': display_projects,
         'is_admin': request.user.is_superuser,
     })
 
@@ -114,17 +193,27 @@ def create_project(request):
             project.save()
             
             # Save many-to-many data (assigned_users) if present
-            form.save_m2m()
-            
-            # If admin assigned users to the project, inform them
-            if request.user.is_superuser and form.cleaned_data.get('assigned_users'):
-                assigned_users_count = form.cleaned_data['assigned_users'].count()
+            if request.user.is_superuser and 'assigned_users' in form.cleaned_data:
+                # Get the assigned users from the form
+                assigned_users = form.cleaned_data.get('assigned_users', [])
+                
+                # Make sure the creator is included in assigned_users if they're not already
+                if project.user not in assigned_users:
+                    assigned_users = list(assigned_users)
+                    assigned_users.append(project.user)
+                
+                # Set the assigned_users for the project
+                project.assigned_users.set(assigned_users)
+                
+                assigned_users_count = len(assigned_users)
                 owner_name = project.user.username
                 messages.success(
                     request,
                     f'Project created successfully for {owner_name} with {assigned_users_count} assigned users.'
                 )
             else:
+                # For non-admin users, automatically assign themselves to the project
+                project.assigned_users.add(request.user)
                 messages.success(request, 'Project created successfully.')
                 
             # Optionally, create an initial task
@@ -145,6 +234,57 @@ def create_project(request):
     return render(request, 'project_form.html', {
         'form': form, 
         'action': 'Create',
+        'is_admin': request.user.is_superuser
+    })
+
+@login_required
+def update_project(request, project_id):
+    # Allow admins to edit any project, but regular users can only edit their own
+    if request.user.is_superuser:
+        project = get_object_or_404(Project, id=project_id)
+    else:
+        project = get_object_or_404(Project, id=project_id, user=request.user)
+        
+    if request.method == "POST":
+        form = ProjectForm(request.POST, instance=project, user=request.user)
+        if form.is_valid():
+            form.save(commit=False)  # First save the basic fields
+            
+            if request.user.is_superuser and 'assigned_users' in form.cleaned_data:
+                # Get the assigned users from the form
+                assigned_users = form.cleaned_data.get('assigned_users', [])
+                
+                # Make sure the creator is included in assigned_users if they're not already
+                if project.user not in assigned_users:
+                    assigned_users = list(assigned_users)
+                    assigned_users.append(project.user)
+                
+                # Set the assigned_users for the project
+                project.assigned_users.set(assigned_users)
+                
+                project.save()
+                
+                assigned_users_count = len(assigned_users)
+                messages.success(
+                    request,
+                    f'Project updated successfully with {assigned_users_count} assigned users.'
+                )
+            else:
+                # For regular users, form.save() will handle the basic fields
+                # but we need to make sure they're still assigned to the project
+                project.save()
+                if request.user not in project.assigned_users.all():
+                    project.assigned_users.add(request.user)
+                
+                messages.success(request, 'Project updated successfully!')
+                
+            return redirect('task_list')
+    else:
+        form = ProjectForm(instance=project, user=request.user)
+    
+    return render(request, 'project_form.html', {
+        'form': form, 
+        'action': 'Update',
         'is_admin': request.user.is_superuser
     })
 

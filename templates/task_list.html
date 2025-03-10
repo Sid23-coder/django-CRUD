@@ -24,33 +24,29 @@
     {% endfor %}
   {% endif %}
 
-  <!-- Tasks display -->
-  {% if tasks %}
-    {% regroup tasks by project as project_list %}
-    <div class="accordion" id="tasksAccordion">
-      {% for project in project_list %}
+  <!-- Projects display with assignment info -->
+  {% if display_projects %}
+    <div class="accordion" id="projectsAccordion">
+      {% for project_info in display_projects %}
       <div class="accordion-item mb-3 shadow-sm">
         <!-- Accordion header -->
-        <h2 class="accordion-header" id="heading{{ project.grouper.id|default:'none' }}">
-          <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ project.grouper.id|default:'none' }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ project.grouper.id|default:'none' }}">
+        <h2 class="accordion-header" id="heading{{ project_info.id }}-{{ forloop.counter }}">
+          <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ project_info.id }}-{{ forloop.counter }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ project_info.id }}-{{ forloop.counter }}">
             <div class="d-flex justify-content-between align-items-center w-100 me-3">
               <span>
-                {% if project.grouper %}
-                  {{ project.grouper.name }} 
-                  <small class="text-muted">
-                    {% if project.grouper %}(Owner: {{ project.grouper.user.username }}){% endif %}
-                  </small>
-                {% else %}
-                  No Project
-                {% endif %}
+                {{ project_info.name }} 
+                <small class="text-muted">
+                  (Created by: {{ project_info.creator }}, Assigned to: {{ project_info.assigned_to }})
+                </small>
               </span>
-              <span class="badge bg-secondary rounded-pill">{{ project.list|length }} tasks</span>
+              <span class="badge bg-secondary rounded-pill">{{ project_info.tasks|length }} tasks</span>
             </div>
           </button>
         </h2>
         <!-- Accordion body -->
-        <div id="collapse{{ project.grouper.id|default:'none' }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="heading{{ project.grouper.id|default:'none' }}" data-bs-parent="#tasksAccordion">
+        <div id="collapse{{ project_info.id }}-{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="heading{{ project_info.id }}-{{ forloop.counter }}" data-bs-parent="#projectsAccordion">
           <div class="accordion-body">
+            {% if project_info.tasks %}
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead class="table-light">
@@ -64,7 +60,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {% for task in project.list %}
+                  {% for task in project_info.tasks %}
                     <tr>
                       <td>{{ task.title }}</td>
                       <td>{{ task.due_date|date:"M d, Y" }}</td>
@@ -102,6 +98,12 @@
                 </tbody>
               </table>
             </div>
+            {% else %}
+            <div class="alert alert-info">
+              No tasks available for this project.
+              <a href="{% url 'create_task' %}?project={{ project_info.id }}" class="alert-link">Add a task</a>
+            </div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -109,7 +111,7 @@
     </div>
   {% else %}
     <div class="alert alert-info">
-      No tasks available.
+      No projects or tasks available.
     </div>
   {% endif %}
 </div>
