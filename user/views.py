@@ -70,14 +70,25 @@ def user_logout(request):
 @login_required
 def task_list(request):
     if request.user.is_superuser:
-        tasks = Task.objects.all().order_by('project')
+        # For admin users: Show all tasks with project information 
+        tasks = Task.objects.all().select_related('project', 'user', 'project__user').order_by('project')
+        
+        # Add permissions for all tasks for admin
         for task in tasks:
             task.has_edit_permission = True
             task.has_delete_permission = True
     else:
+        # For regular users: Show only their tasks and tasks shared with them
         own_tasks = Task.objects.filter(user=request.user)
-        shared_tasks = Task.objects.filter(taskpermission__user=request.user)  # Remove distinct() here
-        tasks = (own_tasks | shared_tasks).distinct().order_by('project')     # Apply distinct() after combining
+        shared_tasks = Task.objects.filter(taskpermission__user=request.user)
+        
+        # Also include tasks from projects assigned to the user
+        assigned_project_tasks = Task.objects.filter(project__assigned_users=request.user)
+        
+        # Combine all task sets and remove duplicates
+        tasks = (own_tasks | shared_tasks | assigned_project_tasks).distinct().select_related('project', 'user', 'project__user').order_by('project')
+        
+        # Add permission flags to each task
         for task in tasks:
             task.has_edit_permission = check_task_permission(request.user, task, 'edit')
             task.has_delete_permission = check_task_permission(request.user, task, 'delete')
@@ -90,41 +101,84 @@ def task_list(request):
 @login_required
 def create_project(request):
     if request.method == "POST":
-        form = ProjectForm(request.POST)
+        form = ProjectForm(request.POST, user=request.user)
         if form.is_valid():
             project = form.save(commit=False)
-            project.user = request.user
+            
+            # If admin and owner is specified, use that owner
+            if request.user.is_superuser and form.cleaned_data.get('user'):
+                project.user = form.cleaned_data['user']
+            else:
+                project.user = request.user  # set the current user as owner
+                
             project.save()
+            
+            # Save many-to-many data (assigned_users) if present
+            form.save_m2m()
+            
+            # If admin assigned users to the project, inform them
+            if request.user.is_superuser and form.cleaned_data.get('assigned_users'):
+                assigned_users_count = form.cleaned_data['assigned_users'].count()
+                owner_name = project.user.username
+                messages.success(
+                    request,
+                    f'Project created successfully for {owner_name} with {assigned_users_count} assigned users.'
+                )
+            else:
+                messages.success(request, 'Project created successfully.')
+                
+            # Optionally, create an initial task
             Task.objects.create(
                 title=f"Initial task for {project.name}",
                 description="Placeholder task - edit or delete as needed",
-                user=request.user,
+                user=project.user,  # Use the project owner for the task
                 project=project,
                 due_date=date.today(),
                 priority='Low',
                 status='Pending'
             )
-            messages.success(
-                request,
-                'Project created successfully with an initial task. Add more tasks or edit/delete this one.'
-            )
+            
             return redirect('task_list')
     else:
-        form = ProjectForm()
-    return render(request, 'project_form.html', {'form': form, 'action': 'Create'})
+        form = ProjectForm(user=request.user)
+    
+    return render(request, 'project_form.html', {
+        'form': form, 
+        'action': 'Create',
+        'is_admin': request.user.is_superuser
+    })
 
 @login_required
 def update_project(request, project_id):
-    project = get_object_or_404(Project, id=project_id, user=request.user)
+    # Allow admins to edit any project, but regular users can only edit their own
+    if request.user.is_superuser:
+        project = get_object_or_404(Project, id=project_id)
+    else:
+        project = get_object_or_404(Project, id=project_id, user=request.user)
+        
     if request.method == "POST":
-        form = ProjectForm(request.POST, instance=project)
+        form = ProjectForm(request.POST, instance=project, user=request.user)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Project updated successfully!')
+            form.save()  # This will handle both regular fields and M2M relationships
+            
+            if request.user.is_superuser and 'assigned_users' in form.cleaned_data:
+                assigned_users_count = form.cleaned_data['assigned_users'].count()
+                messages.success(
+                    request,
+                    f'Project updated successfully with {assigned_users_count} assigned users.'
+                )
+            else:
+                messages.success(request, 'Project updated successfully!')
+                
             return redirect('task_list')
     else:
-        form = ProjectForm(instance=project)
-    return render(request, 'project_form.html', {'form': form, 'action': 'Update'})
+        form = ProjectForm(instance=project, user=request.user)
+    
+    return render(request, 'project_form.html', {
+        'form': form, 
+        'action': 'Update',
+        'is_admin': request.user.is_superuser
+    })
 
 @login_required
 def delete_project(request, project_id):

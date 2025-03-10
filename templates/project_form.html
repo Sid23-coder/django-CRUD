@@ -1,4 +1,3 @@
-{# templates/tasks/project_form.html #}
 {% extends 'base.html' %}
 {% block content %}
 <div class="container">
@@ -11,20 +10,45 @@
                 <div class="card-body">
                     <form method="POST">
                         {% csrf_token %}
-                        {% for field in form %}
+                        
+                        {# Project Name #}
                         <div class="mb-3">
-                            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.errors %}
+                            <label for="{{ form.name.id_for_label }}" class="form-label">{{ form.name.label }}</label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
                             <div class="text-danger">
-                                {{ field.errors }}
+                                {{ form.name.errors }}
                             </div>
                             {% endif %}
-                            {% if field.help_text %}
-                            <small class="form-text text-muted">{{ field.help_text }}</small>
+                        </div>
+                        
+                        {# Project Description #}
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                            <div class="text-danger">
+                                {{ form.description.errors }}
+                            </div>
                             {% endif %}
                         </div>
-                        {% endfor %}
+                        
+                        {# Assigned Users (for admin only) #}
+                        {% if is_admin and form.assigned_users %}
+                        <div class="mb-3">
+                            <label for="{{ form.assigned_users.id_for_label }}" class="form-label">{{ form.assigned_users.label }}</label>
+                            {{ form.assigned_users }}
+                            {% if form.assigned_users.errors %}
+                            <div class="text-danger">
+                                {{ form.assigned_users.errors }}
+                            </div>
+                            {% endif %}
+                            {% if form.assigned_users.help_text %}
+                            <small class="form-text text-muted">{{ form.assigned_users.help_text }}</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">Save Project</button>
                             <a href="{% url 'task_list' %}" class="btn btn-secondary">Cancel</a>
@@ -35,4 +59,20 @@
         </div>
     </div>
 </div>
+
+{% if is_admin %}
+<script>
+    // Optional: Add a JavaScript library like Select2 to enhance multiple select experience
+    // This is just a placeholder - you would need to include the Select2 library for this to work
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if any select2 library is available
+        if (typeof $ !== 'undefined' && $.fn.select2) {
+            $('#id_assigned_users').select2({
+                placeholder: "Select users to assign to this project",
+                allowClear: true
+            });
+        }
+    });
+</script>
+{% endif %}
 {% endblock %}
