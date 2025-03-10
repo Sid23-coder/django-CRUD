@@ -3,7 +3,7 @@
 set -o errexit
 
 pip install -r requirements.txt
-
+python manage.py collectstatic
 python manage.py makemigrations user 
 python manage.py migrate
 
